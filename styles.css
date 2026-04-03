@@ -1,0 +1,147 @@
+:root {
+  --bg: #111827;
+  --fg: #e5e7eb;
+  --panel: #1f2937;
+  --accent: #8b5cf6;
+}
+
+/* Light */
+:root[data-theme="light"] {
+  --bg: #f9fafb;
+  --fg: #111827;
+  --panel: #ffffff;
+}
+
+/* Dark */
+:root[data-theme="dark"] {
+  --bg: #111827;
+  --fg: #e5e7eb;
+  --panel: #1f2937;
+}
+
+/* Dracula */
+:root[data-theme="dracula"] {
+  --bg: #282a36;
+  --fg: #f8f8f2;
+  --panel: #44475a;
+}
+
+/* System */
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"] {
+    --bg: #111827;
+    --fg: #e5e7eb;
+    --panel: #1f2937;
+  }
+}
+
+body {
+  margin: 0;
+  padding: 16px;
+  font-family: system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+/* Mobile: untereinander */
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .left, .right {
+    width: 100%;
+  }
+}
+
+
+.panel {
+  background: var(--panel);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+textarea#rawText {
+  width: 100%;
+  height: 140px;
+  resize: vertical;
+  font-family: monospace;
+  background: #020617;
+  color: #e5e7eb;
+  border-radius: 4px;
+  border: 1px solid #374151;
+  padding: 8px;
+}
+
+button {
+  margin-top: 8px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  border: none;
+  background: var(--accent);
+  color: white;
+  cursor: pointer;
+}
+
+#terminal {
+  width: 100%;
+  height: 260px;
+  background: #020617;
+  border-radius: 4px;
+  overflow: hidden;
+}
+@media (max-width: 900px) {
+  #terminal {
+    height: 200px;
+  }
+}
+
+
+.error-border {
+  border: 1px solid #dc2626 !important; /* rot */
+  box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.3);
+}
+
+#errorList,
+#debugErrors {
+  list-style: none;
+  padding-left: 0;
+  margin: 0.25rem 0 0;
+}
+
+.error-text {
+  color: #dc2626;
+  font-size: 0.85rem;
+}
+
+.error-border {
+  border: 1px solid #dc2626 !important;
+  box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.3);
+}
+
+.error-text {
+  color: #dc2626;
+  font-size: 0.85rem;
+}
+button.full {
+  width: 100%;
+}
+
+@media (max-width: 900px) {
+  label {
+    display: block;
+    margin-bottom: 12px;
+  }
+
+  label input {
+    margin-top: 4px;
+  }
+}
+
