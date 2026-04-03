@@ -1,0 +1,15 @@
+services:
+  nzb-monkey-go:
+    container_name: nzb-monkey-go
+    image: nzb-monkey-go-ui:2.0.52
+    restart: always
+    ports:  
+      - 3030:3000   # Web-UI
+    volumes:
+
+## copy /path/to/config/nzb-monkey-go.conf
+## or
+## make dir /path/to/config/
+## touch /path/to/config/nzb-monkey-go.conf
+  
+      - /path/to/config/nzb-monkey-go.conf:/root/.config/nzb-monkey-go.conf
