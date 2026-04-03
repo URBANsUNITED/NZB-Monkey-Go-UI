@@ -1,6 +1,9 @@
 # NZB-Monkey-Go-UI
 Eine UI für den NZB-Monkey-Go als Dockerfile
 
+<img width="1446" height="566" alt="image" src="https://github.com/user-attachments/assets/82d881f8-205f-4362-a71b-b16805d60fe8" />
+
+
 # nzb-monkey-go UI v2
 
 Eine moderne, browserbasierte Benutzeroberfläche für **nzb-monkey-go**, optimiert für Copy‑Paste‑Workflows aus Usenet‑Foren, inklusive Live‑Parser, Terminal‑Integration und Prozesssteuerung.
