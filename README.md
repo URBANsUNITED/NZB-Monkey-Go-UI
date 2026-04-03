@@ -148,7 +148,7 @@ http://localhost:3000
 
 
 ## 📄 Lizenz
-Privatprojekt – keine Weitergabe ohne Zustimmung.
+Privatprojekt – für den eigene Nutzen. Darf gerne verbessert werden. Status ist wie er ist!
 
 ## Credits NZB Monkey GO: Tensai75
 https://github.com/Tensai75/nzb-monkey-go
