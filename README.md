@@ -139,7 +139,6 @@ Erkennt:
 ## 📱 Mobile Hinweise
 
 Die UI ist primär Desktop‑optimiert, funktioniert aber auch auf mobilen Geräten.  
-Eine vollständig mobile Version ist geplant.
 
 ---
 
@@ -151,5 +150,12 @@ http://localhost:3000
 ## 📄 Lizenz
 Privatprojekt – keine Weitergabe ohne Zustimmung.
 
+## Credits NZB Monkey GO: Tensai75
+https://github.com/Tensai75/nzb-monkey-go
+
 ## ✨ Autor
 URBANsUNITED + Copilot (Microsoft)
+
+## BENUTZUNG AUF EIGENE GEFAHR
+
+
