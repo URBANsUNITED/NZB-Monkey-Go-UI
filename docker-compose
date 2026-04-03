@@ -4,12 +4,13 @@ services:
     image: urbansunited/nzb-monkey-go-ui:latest
     restart: always
     ports:  
-      - 3030:3000   # Web-UI
+      - 3000:3000   # Web-UI
     volumes:
-
-## copy /path/to/config/nzb-monkey-go.conf
-## or
-## make dir /path/to/config/
-## touch /path/to/config/nzb-monkey-go.conf
-  
       - /path/to/config/nzb-monkey-go.conf:/root/.config/nzb-monkey-go.conf
+
+    ## copy /path/to/config/nzb-monkey-go.conf
+    ## or
+    ## make dir /path/to/config/
+    ## touch /path/to/config/nzb-monkey-go.conf
+  
+      
