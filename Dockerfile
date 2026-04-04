@@ -30,24 +30,20 @@ RUN mkdir -p src/server \
     && mkdir -p src/config \
     && mkdir -p public
 
-# Backend (aus Root kopieren)
-COPY index.js ./src/server/index.js
-COPY terminal.js ./src/server/terminal.js
-COPY config.js ./src/server/config.js
+COPY /src/server/index.js ./src/server/index.js
+COPY /src/server/terminal.js ./src/server/terminal.js
+COPY /src/server/config.js ./src/server/config.js
 
-# Parser (aus Root kopieren)
-COPY forum.js ./src/parser/forum.js
-COPY parser.js ./src/parser/parser.js
+COPY /src/parser/forum.js ./src/parser/forum.js
+COPY /src/parser/parser.js ./src/parser/parser.js
 
-# Config (aus Root kopieren)
-COPY flags.json ./src/config/flags.json
-COPY settings.json ./src/config/settings.json
+COPY /src/config/flags.json ./src/config/flags.json
+COPY /src/config/settings.json ./src/config/settings.json
 
-# Frontend (aus Root kopieren)
-COPY index.html ./public/index.html
-COPY styles.css ./public/styles.css
-COPY app.js ./public/app.js
-COPY parser-client.js ./public/parser-client.js
+COPY /public/index.html ./public/index.html
+COPY /public/styles.css ./public/styles.css
+COPY /public/app.js ./public/app.js
+COPY /public/parser-client.js ./public/parser-client.js
 
 EXPOSE 3000
 CMD ["node", "src/server/index.js"]
