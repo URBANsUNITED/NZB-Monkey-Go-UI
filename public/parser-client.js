@@ -1,5 +1,5 @@
 // parser-client.js
-// v6.6 – NZBLNK als Datenquelle + Titel-Fix
+// v6.7 – Datum "Heute", Titel-Prefix-Fix, NZBLNK-Optimierung
 
 (function () {
 
@@ -18,13 +18,46 @@
   // ------------------------------------------------------------
   // DATE
   // ------------------------------------------------------------
-  function extractDate(text) {
+  function extractDateFromRelative(line) {
+    const now = new Date();
+    const base = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    if (/^Heute/i.test(line)) {
+      return base;
+    }
+    if (/^Gestern/i.test(line)) {
+      base.setDate(base.getDate() - 1);
+      return base;
+    }
+    if (/^Vorgestern/i.test(line)) {
+      base.setDate(base.getDate() - 2);
+      return base;
+    }
+    return null;
+  }
+
+  function extractDate(text, lines) {
+    // 1) Heute/Gestern/Vorgestern
+    for (const l of lines) {
+      const d = extractDateFromRelative(clean(l));
+      if (d) return formatDate(d);
+    }
+
+    // 2) Normales Datum DD.MM.YYYY
     const m = text.match(/(\d{2}\.\d{2}\.\d{4})/);
     if (m) {
       const [dd, mm, yyyy] = m[1].split(".");
       return `${yyyy}-${mm}-${dd}`;
     }
+
     return "";
+  }
+
+  function formatDate(d) {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
   }
 
   // ------------------------------------------------------------
@@ -114,15 +147,14 @@
   // ------------------------------------------------------------
   // NZBLNK
   // ------------------------------------------------------------
-function extractNzblnk(lines) {
-  for (const raw of lines) {
-    const line = clean(raw);
-    const m = line.match(/(nzblnk[:?][^\s"'<>]+)/i);
-    if (m) return m[1];
+  function extractNzblnk(lines) {
+    for (const raw of lines) {
+      const line = clean(raw);
+      const m = line.match(/(nzblnk[:?][^\s"'<>]+)/i);
+      if (m) return m[1];
+    }
+    return "";
   }
-  return "";
-}
-
 
   // ------------------------------------------------------------
   // TITLE
@@ -131,14 +163,13 @@ function extractNzblnk(lines) {
     const s = clean(line);
     if (!s) return 0;
 
-    // NZBLNK-Zeilen nie als Titel werten
-    if (/^nzblnk\?/i.test(s)) return 0;
+    if (/^nzblnk[:?]/i.test(s)) return 0;
 
     let score = 0;
 
     if (s.length >= 5 && s.length <= 120) score += 2;
     if (/\b(19|20)\d{2}\b/.test(s)) score += 3;
-    if (/\b(SUXXORS|REPACK|PROPER|MGE|DV|WEB|H265|HEVC|2160p|1080p|AV1)\b/i.test(s)) score += 3;
+    if (/\b(SUXXORS|REPACK|PROPER|MGE|DV|WEB|H265|HEVC|2160p|1080p|AV1|BluRay|Remux)\b/i.test(s)) score += 3;
     if (!/[.!?]$/.test(s)) score += 1;
 
     return score;
@@ -146,8 +177,13 @@ function extractNzblnk(lines) {
 
   function normalizeTitle(title) {
     let t = clean(title);
-    const prefixRegex = /^(AV1|HEVC|H\.265|H265|x265|x264)\s+/i;
-    t = t.replace(prefixRegex, "").trim();
+
+    // Codec-Prefixe
+    t = t.replace(/^(AV1|HEVC|H\.265|H265|x265|x264)\s+/i, "").trim();
+
+    // BD-/Remux-Prefixe
+    t = t.replace(/^(BD|BD[-–—:]|BD\s*[-–—]\s*Remux|BD\s*Remux)\s+/i, "").trim();
+
     return t;
   }
 
@@ -201,10 +237,7 @@ function extractNzblnk(lines) {
       const ts = Number(d) * 1000;
       const dt = new Date(ts);
       if (!isNaN(dt.getTime())) {
-        const yyyy = dt.getFullYear();
-        const mm = String(dt.getMonth() + 1).padStart(2, "0");
-        const dd = String(dt.getDate()).padStart(2, "0");
-        result.date = `${yyyy}-${mm}-${dd}`;
+        result.date = formatDate(dt);
       }
     }
   }
@@ -217,7 +250,7 @@ function extractNzblnk(lines) {
     const flat = lines.join("\n");
 
     const result = {
-      date: extractDate(flat),
+      date: extractDate(flat, lines),
       title: extractTitle(lines),
       group: extractGroups(lines),
       header: extractHeader(lines),
@@ -226,7 +259,6 @@ function extractNzblnk(lines) {
       filename: extractFilename(lines)
     };
 
-    // NZBLNK als Datenquelle auswerten
     applyNzblnkOverrides(result);
 
     return result;
