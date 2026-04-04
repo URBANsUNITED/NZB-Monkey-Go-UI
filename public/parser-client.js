@@ -1,5 +1,5 @@
 // parser-client.js
-// v6.7 – Datum "Heute", Titel-Prefix-Fix, NZBLNK-Optimierung
+// v6.8 – Titel-Prefix-Entfernung (BD, Remux, AV1, HEVC), Datum "Heute"
 
 (function () {
 
@@ -16,34 +16,25 @@
   }
 
   // ------------------------------------------------------------
-  // DATE
+  // DATE (inkl. Heute/Gestern/Vorgestern)
   // ------------------------------------------------------------
   function extractDateFromRelative(line) {
     const now = new Date();
     const base = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-    if (/^Heute/i.test(line)) {
-      return base;
-    }
-    if (/^Gestern/i.test(line)) {
-      base.setDate(base.getDate() - 1);
-      return base;
-    }
-    if (/^Vorgestern/i.test(line)) {
-      base.setDate(base.getDate() - 2);
-      return base;
-    }
+    if (/^Heute/i.test(line)) return base;
+    if (/^Gestern/i.test(line)) { base.setDate(base.getDate() - 1); return base; }
+    if (/^Vorgestern/i.test(line)) { base.setDate(base.getDate() - 2); return base; }
+
     return null;
   }
 
   function extractDate(text, lines) {
-    // 1) Heute/Gestern/Vorgestern
     for (const l of lines) {
       const d = extractDateFromRelative(clean(l));
       if (d) return formatDate(d);
     }
 
-    // 2) Normales Datum DD.MM.YYYY
     const m = text.match(/(\d{2}\.\d{2}\.\d{4})/);
     if (m) {
       const [dd, mm, yyyy] = m[1].split(".");
@@ -93,13 +84,8 @@
     for (let i = 0; i < lines.length; i++) {
       const line = clean(lines[i]);
 
-      if (/^Header\s*:?\s*$/i.test(line)) {
-        return clean(lines[i + 1] || "");
-      }
-
-      if (/^Header\s*:/i.test(line)) {
-        return clean(line.replace(/^Header\s*:/i, ""));
-      }
+      if (/^Header\s*:?\s*$/i.test(line)) return clean(lines[i + 1] || "");
+      if (/^Header\s*:/i.test(line)) return clean(line.replace(/^Header\s*:/i, ""));
     }
     return "";
   }
@@ -111,13 +97,8 @@
     for (let i = 0; i < lines.length; i++) {
       const line = clean(lines[i]);
 
-      if (/^(Passwort|Password)\s*:?\s*$/i.test(line)) {
-        return clean(lines[i + 1] || "");
-      }
-
-      if (/^(Passwort|Password)\s*:/i.test(line)) {
-        return clean(line.replace(/^(Passwort|Password)\s*:/i, ""));
-      }
+      if (/^(Passwort|Password)\s*:?\s*$/i.test(line)) return clean(lines[i + 1] || "");
+      if (/^(Passwort|Password)\s*:/i.test(line)) return clean(line.replace(/^(Passwort|Password)\s*:/i, ""));
     }
     return "";
   }
@@ -129,13 +110,8 @@
     for (let i = 0; i < lines.length; i++) {
       const line = clean(lines[i]);
 
-      if (/^Dateiname\b/i.test(line)) {
-        return clean(lines[i + 1] || "");
-      }
-
-      if (/Dateiname für SABnzbd und Newsleecher/i.test(line)) {
-        return clean(lines[i + 1] || "");
-      }
+      if (/^Dateiname\b/i.test(line)) return clean(lines[i + 1] || "");
+      if (/Dateiname für SABnzbd und Newsleecher/i.test(line)) return clean(lines[i + 1] || "");
     }
 
     const withPass = lines.find(l => /\{\{.+\}\}/.test(l));
@@ -162,12 +138,10 @@
   function scoreTitle(line) {
     const s = clean(line);
     if (!s) return 0;
-
     if (/^nzblnk[:?]/i.test(s)) return 0;
 
     let score = 0;
-
-    if (s.length >= 5 && s.length <= 120) score += 2;
+    if (s.length >= 5 && s.length <= 140) score += 2;
     if (/\b(19|20)\d{2}\b/.test(s)) score += 3;
     if (/\b(SUXXORS|REPACK|PROPER|MGE|DV|WEB|H265|HEVC|2160p|1080p|AV1|BluRay|Remux)\b/i.test(s)) score += 3;
     if (!/[.!?]$/.test(s)) score += 1;
@@ -183,6 +157,12 @@
 
     // BD-/Remux-Prefixe
     t = t.replace(/^(BD|BD[-–—:]|BD\s*[-–—]\s*Remux|BD\s*Remux)\s+/i, "").trim();
+
+    // Reiner "Remux"-Prefix
+    t = t.replace(/^Remux\s+/i, "").trim();
+
+    // Führende Trennzeichen entfernen
+    t = t.replace(/^[-–—:]\s*/, "").trim();
 
     return t;
   }
@@ -236,9 +216,7 @@
     if (d && !isNaN(Number(d))) {
       const ts = Number(d) * 1000;
       const dt = new Date(ts);
-      if (!isNaN(dt.getTime())) {
-        result.date = formatDate(dt);
-      }
+      if (!isNaN(dt.getTime())) result.date = formatDate(dt);
     }
   }
 
