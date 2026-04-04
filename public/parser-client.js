@@ -1,5 +1,5 @@
 // parser-client.js
-// v6.4 – wie v6.3, aber mit Titel-Normalisierung (AV1/HEVC vorne weg)
+// v6.5 – NZBLNK als Datenquelle + Titel-Fix
 
 (function () {
 
@@ -130,6 +130,9 @@
     const s = clean(line);
     if (!s) return 0;
 
+    // NZBLNK-Zeilen nie als Titel werten
+    if (/^nzblnk\?/i.test(s)) return 0;
+
     let score = 0;
 
     if (s.length >= 5 && s.length <= 120) score += 2;
@@ -142,12 +145,8 @@
 
   function normalizeTitle(title) {
     let t = clean(title);
-
-    // führende Codec-/Tag-Prefixe entfernen
-    // z.B. "AV1 They Cloned Tyrone ..." -> "They Cloned Tyrone ..."
     const prefixRegex = /^(AV1|HEVC|H\.265|H265|x265|x264)\s+/i;
     t = t.replace(prefixRegex, "").trim();
-
     return t;
   }
 
@@ -174,6 +173,42 @@
   }
 
   // ------------------------------------------------------------
+  // NZBLNK → Felder überschreiben
+  // ------------------------------------------------------------
+  function applyNzblnkOverrides(result) {
+    if (!result.nzblnk) return;
+
+    const raw = result.nzblnk;
+    const qIndex = raw.indexOf("?");
+    if (qIndex === -1) return;
+
+    const query = raw.slice(qIndex + 1);
+    const params = new URLSearchParams(query);
+
+    const t = params.get("t");
+    const h = params.get("h");
+    const p = params.get("p");
+    const g = params.get("g");
+    const d = params.get("d");
+
+    if (t) result.title = normalizeTitle(decodeURIComponent(t));
+    if (h) result.header = h;
+    if (p) result.password = p;
+    if (g) result.group = g;
+
+    if (d && !isNaN(Number(d))) {
+      const ts = Number(d) * 1000;
+      const dt = new Date(ts);
+      if (!isNaN(dt.getTime())) {
+        const yyyy = dt.getFullYear();
+        const mm = String(dt.getMonth() + 1).padStart(2, "0");
+        const dd = String(dt.getDate()).padStart(2, "0");
+        result.date = `${yyyy}-${mm}-${dd}`;
+      }
+    }
+  }
+
+  // ------------------------------------------------------------
   // MAIN
   // ------------------------------------------------------------
   function parseForumText(text) {
@@ -189,6 +224,9 @@
       nzblnk: extractNzblnk(lines),
       filename: extractFilename(lines)
     };
+
+    // NZBLNK als Datenquelle auswerten
+    applyNzblnkOverrides(result);
 
     return result;
   }
