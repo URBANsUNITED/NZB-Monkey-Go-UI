@@ -1,6 +1,6 @@
 FROM node:20-slim
 
-ARG APP_VERSION=0.3.0
+ARG APP_VERSION=0.3.1
 ENV APP_VERSION=${APP_VERSION}
 
 # Grundpakete
