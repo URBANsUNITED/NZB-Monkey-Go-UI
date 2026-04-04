@@ -1,5 +1,5 @@
 // parser-client.js
-// v6.5 – NZBLNK als Datenquelle + Titel-Fix
+// v6.6 – NZBLNK als Datenquelle + Titel-Fix
 
 (function () {
 
@@ -114,14 +114,15 @@
   // ------------------------------------------------------------
   // NZBLNK
   // ------------------------------------------------------------
-  function extractNzblnk(lines) {
-    for (const raw of lines) {
-      const line = clean(raw);
-      const m = line.match(/(nzblnk\?[^\s"'<>]+)/i);
-      if (m) return m[1];
-    }
-    return "";
+function extractNzblnk(lines) {
+  for (const raw of lines) {
+    const line = clean(raw);
+    const m = line.match(/(nzblnk[:?][^\s"'<>]+)/i);
+    if (m) return m[1];
   }
+  return "";
+}
+
 
   // ------------------------------------------------------------
   // TITLE
