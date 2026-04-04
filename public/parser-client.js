@@ -1,17 +1,28 @@
 // parser-client.js
-// v5.0 – robuste Forenparser-Logik für nzb-monkey-go UI
+// v6.0 – "ML-ähnlicher" Forenparser für nzb-monkey-go UI
 
 (function () {
+  // ------------------------------------------------------------
+  // Helpers
+  // ------------------------------------------------------------
+
   function normalizeLines(text) {
     return text
       .replace(/\r\n/g, "\n")
       .replace(/\r/g, "\n")
       .split("\n")
-      .map(l => l.trimEnd());
+      .map(l => l.replace(/[\u00A0\u200B\u200C\u200D]/g, "").trimEnd());
   }
 
+  function clean(s) {
+    return (s || "").replace(/[\u00A0\u200B\u200C\u200D]/g, "").trim();
+  }
+
+  // ------------------------------------------------------------
+  // Date
+  // ------------------------------------------------------------
+
   function extractDate(lines) {
-    // 1) explizites Datum im Format DD.MM.YYYY
     for (const line of lines) {
       const m = line.match(/(\d{2}\.\d{2}\.\d{4})/);
       if (m) {
@@ -19,23 +30,23 @@
         return `${yyyy}-${mm}-${dd}`;
       }
     }
-
-    // 2) Fallback: nichts gefunden
     return "";
   }
 
+  // ------------------------------------------------------------
+  // Groups
+  // ------------------------------------------------------------
+
   function extractGroups(lines) {
-    // Suche nach "Group(s)" / "Groups" Block
     const idx = lines.findIndex(l =>
-      /^Groups?:?$/i.test(l) ||
-      /^Group\(s\)$/i.test(l)
+      /^Groups?:?$/i.test(clean(l)) ||
+      /^Group\(s\)$/i.test(clean(l))
     );
 
     if (idx >= 0 && lines[idx + 1]) {
-      const line = lines[idx + 1].trim();
-      // Varianten: "alt.binaries.a51 | alt.binaries.frogs | alt.binaries.holiday"
+      const line = clean(lines[idx + 1]);
       return line
-        .split("|")
+        .split(/[\|\s]+/)
         .map(g => g.trim())
         .filter(Boolean)
         .join(",");
@@ -44,121 +55,274 @@
     return "";
   }
 
+  // ------------------------------------------------------------
+  // Header (inkl. versteckt in BBCode)
+  // ------------------------------------------------------------
+
   function extractHeader(lines) {
-    // "Header" Zeile + nächste Zeile
-    const idx = lines.findIndex(l => /^Header$/i.test(l));
-    if (idx >= 0 && lines[idx + 1]) {
-      return lines[idx + 1].trim();
-    }
+    // 1) Klassische Varianten
+    for (let i = 0; i < lines.length; i++) {
+      const line = clean(lines[i]);
 
-    // Fallback: manchmal "Header:" in einer Zeile
-    const inline = lines.find(l => /^Header\s*:/i.test(l));
-    if (inline) {
-      return inline.replace(/^Header\s*:/i, "").trim();
-    }
+      if (/^Header\s*:?\s*$/i.test(line)) {
+        if (lines[i + 1]) return clean(lines[i + 1]);
+      }
 
-    return "";
-  }
-
-  function extractPassword(lines) {
-    // "Password" Zeile + nächste Zeile
-    const idx = lines.findIndex(l => /^Password$/i.test(l));
-    if (idx >= 0 && lines[idx + 1]) {
-      return lines[idx + 1].trim();
-    }
-
-    // Inline-Variante
-    const inline = lines.find(l => /^Password\s*:/i.test(l));
-    if (inline) {
-      return inline.replace(/^Password\s*:/i, "").trim();
-    }
-
-    return "";
-  }
-
-  function extractFilename(lines) {
-    // "Dateiname für SABnzbd und Newsleecher" + nächste Zeile
-    const idx = lines.findIndex(l =>
-      /^Dateiname\b/i.test(l) ||
-      /Dateiname für SABnzbd/i.test(l)
-    );
-
-    if (idx >= 0 && lines[idx + 1]) {
-      return lines[idx + 1].trim();
-    }
-
-    // Fallback: Zeile mit {{PASSWORD}}
-    const withPass = lines.find(l => /\{\{.+\}\}/.test(l));
-    if (withPass) {
-      return withPass.trim();
-    }
-
-    return "";
-  }
-
-  function extractNzblnk(lines) {
-    // Suche nach Zeilen, die mit nzblnk anfangen oder einen nzblnk-Link enthalten
-    const nzLine = lines.find(l => /nzblnk\?/i.test(l));
-    if (nzLine) {
-      const m = nzLine.match(/(nzblnk\?[^\s"]+)/i);
-      if (m) return m[1].trim();
-    }
-    return "";
-  }
-
-  // ------------------------------------------------------------
-  // TITEL-ERKENNUNG v5.0
-  // ------------------------------------------------------------
-
-  function extractTitle(lines, result) {
-    // v5 – Release Pattern Detection (neu)
-    if (!result.title) {
-      const releaseRegex =
-        /\b(19|20)\d{2}\b.*\b(GERMAN|DL|WEB|H265|HEVC|REPACK|2160p|1080p|720p|DV|HDR|REMUX)\b/i;
-
-      const releaseCandidates = lines
-        .map(l => l.trim())
-        .filter(l => releaseRegex.test(l));
-
-      if (releaseCandidates.length >= 2) {
-        const first = releaseCandidates[0];
-        const second = releaseCandidates[1];
-
-        if (second.length <= first.length + 20) {
-          result.title = second;
-        } else {
-          result.title = first;
-        }
-      } else if (releaseCandidates.length === 1) {
-        result.title = releaseCandidates[0];
+      if (/^Header\s*:/i.test(line)) {
+        return clean(line.replace(/^Header\s*:/i, ""));
       }
     }
 
-    // v4.1 – deine bestehende Logik (Standard, Groups, Datum)
-    // ------------------------------------------------------------
-    // TITEL-ERKENNUNG (v4.1)
-    // ------------------------------------------------------------
+    // 2) Versteckt in BBCode / Code-Blöcken
+    let inBlock = false;
+    for (let i = 0; i < lines.length; i++) {
+      const line = clean(lines[i]);
+
+      if (/^
+
+\[(code|spoiler|show|nzb)\]
+
+/i.test(line)) {
+        inBlock = true;
+        continue;
+      }
+      if (/^
+
+\[\/(code|spoiler|show|nzb)\]
+
+/i.test(line)) {
+        inBlock = false;
+        continue;
+      }
+
+      if (inBlock) {
+        const m = line.match(/Header\s*:\s*([A-Za-z0-9]+)$/i);
+        if (m) return clean(m[1]);
+      }
+    }
+
+    return "";
+  }
+
+  // ------------------------------------------------------------
+  // Password (inkl. aus Dateiname)
+  // ------------------------------------------------------------
+
+  function extractPassword(lines, filename) {
+    // 1) Klassisch: "Password" / "Passwort"
+    for (let i = 0; i < lines.length; i++) {
+      const line = clean(lines[i]);
+
+      if (/^Passwort\s*:?\s*$/i.test(line) || /^Password\s*:?\s*$/i.test(line)) {
+        if (lines[i + 1]) return clean(lines[i + 1]);
+      }
+
+      if (/^(Passwort|Password)\s*:/i.test(line)) {
+        return clean(line.replace(/^(Passwort|Password)\s*:/i, ""));
+      }
+    }
+
+    // 2) Versteckt in BBCode
+    let inBlock = false;
+    for (let i = 0; i < lines.length; i++) {
+      const line = clean(lines[i]);
+
+      if (/^
+
+\[(code|spoiler|show|nzb)\]
+
+/i.test(line)) {
+        inBlock = true;
+        continue;
+      }
+      if (/^
+
+\[\/(code|spoiler|show|nzb)\]
+
+/i.test(line)) {
+        inBlock = false;
+        continue;
+      }
+
+      if (inBlock) {
+        const m = line.match(/(Passwort|Password)\s*:\s*([^\s]+)/i);
+        if (m) return clean(m[2]);
+      }
+    }
+
+    // 3) Aus Dateiname extrahieren
+    if (filename) {
+      // {{PASSWORD}}
+      let m = filename.match(/\{\{([^}]+)\}\}/);
+      if (m) return clean(m[1]);
+
+      // [PASSWORD]
+      m = filename.match(/
+
+\[([^\]
+
+]+)\]
+
+/);
+      if (m && m[1].length > 4 && !/\.(mkv|mp4|rar|nzb)$/i.test(m[1])) {
+        return clean(m[1]);
+      }
+    }
+
+    return "";
+  }
+
+  // ------------------------------------------------------------
+  // Filename
+  // ------------------------------------------------------------
+
+  function extractFilename(lines) {
+    const idx = lines.findIndex(l =>
+      /^Dateiname\b/i.test(clean(l)) ||
+      /Dateiname für SABnzbd/i.test(clean(l))
+    );
+
+    if (idx >= 0 && lines[idx + 1]) {
+      return clean(lines[idx + 1]);
+    }
+
+    const withPass = lines.find(l => /\{\{.+\}\}/.test(l));
+    if (withPass) return clean(withPass);
+
+    return "";
+  }
+
+  // ------------------------------------------------------------
+  // NZBLNK (inkl. Spoiler/Show/Code)
+  // ------------------------------------------------------------
+
+  function extractNzblnk(lines) {
+    const findInLine = (line) => {
+      const m = line.match(/(nzblnk\?[^\s"'<>]+)/i);
+      return m ? clean(m[1]) : "";
+    };
+
+    // 1) Direkt in Zeile
+    for (const raw of lines) {
+      const line = clean(raw);
+      const found = findInLine(line);
+      if (found) return found;
+    }
+
+    // 2) "NZBLNK" + nächste Zeile
+    for (let i = 0; i < lines.length; i++) {
+      const line = clean(lines[i]);
+      if (/^NZBLNK$/i.test(line) && lines[i + 1]) {
+        const found = findInLine(clean(lines[i + 1]));
+        if (found) return found;
+      }
+    }
+
+    // 3) In [Show]/[Spoiler]/[Code]-Blöcken
+    let inBlock = false;
+    for (let i = 0; i < lines.length; i++) {
+      const line = clean(lines[i]);
+
+      if (/^
+
+\[(code|spoiler|show|nzb)\]
+
+/i.test(line)) {
+        inBlock = true;
+        continue;
+      }
+      if (/^
+
+\[\/(code|spoiler|show|nzb)\]
+
+/i.test(line)) {
+        inBlock = false;
+        continue;
+      }
+
+      if (inBlock) {
+        const found = findInLine(line);
+        if (found) return found;
+      }
+    }
+
+    return "";
+  }
+
+  // ------------------------------------------------------------
+  // ML-ähnliche Titel-Erkennung (Scoring)
+  // ------------------------------------------------------------
+
+  function scoreTitleCandidate(line) {
+    const s = clean(line);
+    if (!s) return 0;
+
+    let score = 0;
+
+    // Länge
+    if (s.length >= 10 && s.length <= 140) score += 2;
+
+    // Jahr
+    if (/\b(19|20)\d{2}\b/.test(s)) score += 3;
+
+    // Qualitäts-/Release-Tags
+    if (/\b(2160p|1080p|720p|WEB|H265|HEVC|DV|HDR|REMUX|BLURAY|BDRIP)\b/i.test(s)) score += 3;
+
+    // Sprache
+    if (/\b(GERMAN|DL|MULTI|DUBBED)\b/i.test(s)) score += 2;
+
+    // Release-Suffix
+    if (/\b(REPACK|PROPER|MGE|SUXXORS|iNTERNAL|UNRATED)\b/i.test(s)) score += 2;
+
+    // Kein Satzende-Punkt
+    if (!/[.!?]$/.test(s)) score += 1;
+
+    // Keine typischen Beschreibungssätze
+    if (!/Laden und mit der entpackten|Hinweis: Upload führt zu|Es kann ein paar Stunden dauern/i.test(s)) {
+      score += 1;
+    }
+
+    return score;
+  }
+
+  function extractTitle(lines, result) {
+    // 1) Release-Pattern (v5)
+    let best = { line: "", score: 0 };
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = clean(lines[i]);
+      const sc = scoreTitleCandidate(line);
+      if (sc > best.score) {
+        best = { line, score: sc };
+      }
+    }
+
+    if (best.score >= 4) {
+      result.title = best.line;
+    }
+
+    // 2) Deine alte Logik (v4.1) als Fallback
 
     // "Standard ..." Titel
     if (!result.title) {
-      const stdTitle = lines.find(l => /^Standard\s+/i.test(l));
+      const stdTitle = lines.find(l => /^Standard\s+/i.test(clean(l)));
       if (stdTitle) {
-        result.title = stdTitle.replace(/^Standard\s+/i, "").trim();
+        result.title = clean(stdTitle.replace(/^Standard\s+/i, ""));
       }
     }
 
     // Titel relativ zu "Groups"
     if (!result.title) {
       const gIdx = lines.findIndex(l =>
-        /^Groups?:?$/i.test(l) ||
-        /^Group\(s\)$/i.test(l)
+        /^Groups?:?$/i.test(clean(l)) ||
+        /^Group\(s\)$/i.test(clean(l))
       );
 
       if (gIdx > 0) {
-        let t = lines[gIdx - 1].trim();
+        let t = clean(lines[gIdx - 1]);
 
-        if (gIdx > 1 && lines[gIdx - 2].trim().length > 0) {
-          const prev = lines[gIdx - 2].trim();
+        if (gIdx > 1 && clean(lines[gIdx - 2]).length > 0) {
+          const prev = clean(lines[gIdx - 2]);
           if (prev.toLowerCase().includes(t.toLowerCase().slice(0, 10))) {
             t = prev;
           }
@@ -171,30 +335,30 @@
     // Titel relativ zu Datum (Zeile nach Datum)
     if (!result.title) {
       const dateLine = lines.find(l =>
-        /^\d{2}\.\d{2}\.\d{4}/.test(l) ||
-        /^Gestern/i.test(l) ||
-        /^Heute/i.test(l) ||
-        /^Vorgestern/i.test(l)
+        /^\d{2}\.\d{2}\.\d{4}/.test(clean(l)) ||
+        /^Gestern/i.test(clean(l)) ||
+        /^Heute/i.test(clean(l)) ||
+        /^Vorgestern/i.test(clean(l))
       );
 
       if (dateLine) {
         const idx = lines.indexOf(dateLine);
         if (idx >= 0 && lines[idx + 1]) {
-          result.title = lines[idx + 1].trim();
+          result.title = clean(lines[idx + 1]);
         }
       }
     }
 
-    // Fallback: aus Dateiname ableiten (ohne {{PASSWORD}})
+    // 3) Fallback: aus Dateiname ableiten
     if (!result.title && result.filename) {
-      result.title = result.filename.split("{{")[0].trim();
+      result.title = clean(result.filename.split("{{")[0]);
     }
 
     return result.title || "";
   }
 
   // ------------------------------------------------------------
-  // HAUPTPARSER
+  // Main parser
   // ------------------------------------------------------------
 
   function parseForumText(text) {
@@ -212,11 +376,10 @@
 
     result.date = extractDate(lines);
     result.group = extractGroups(lines);
-    result.header = extractHeader(lines);
-    result.password = extractPassword(lines);
     result.filename = extractFilename(lines);
+    result.header = extractHeader(lines);
     result.nzblnk = extractNzblnk(lines);
-
+    result.password = extractPassword(lines, result.filename);
     extractTitle(lines, result);
 
     return result;
