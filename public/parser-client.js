@@ -90,6 +90,34 @@ window.parseForumText = function parseForumText(raw) {
   };
 
   // ------------------------------------------------------------
+  // TITEL-ERKENNUNG v5.0
+  // ------------------------------------------------------------
+
+  function extractTitle(lines, result) {
+    // v5 – Release Pattern Detection (neu)
+    if (!result.title) {
+      const releaseRegex =
+        /\b(19|20)\d{2}\b.*\b(GERMAN|DL|WEB|H265|HEVC|REPACK|2160p|1080p|720p|DV|HDR|REMUX)\b/i;
+
+      const releaseCandidates = lines
+        .map(l => l.trim())
+        .filter(l => releaseRegex.test(l));
+
+      if (releaseCandidates.length >= 2) {
+        const first = releaseCandidates[0];
+        const second = releaseCandidates[1];
+
+        if (second.length <= first.length + 20) {
+          result.title = second;
+        } else {
+          result.title = first;
+        }
+      } else if (releaseCandidates.length === 1) {
+        result.title = releaseCandidates[0];
+      }
+    }
+  
+  // ------------------------------------------------------------
   // TITEL-ERKENNUNG (v4.1)
   // ------------------------------------------------------------
 
