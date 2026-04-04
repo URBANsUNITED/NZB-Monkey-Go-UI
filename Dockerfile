@@ -5,7 +5,7 @@ ENV APP_VERSION=${APP_VERSION}
 
 # Grundpakete
 RUN apt-get update && apt-get install -y \
-    curl wget unzip nano ca-certificates \
+    curl wget unzip nano ca-certificates build-essential python3 \
     && rm -rf /var/lib/apt/lists/*
 
 # nzb-monkey-go installieren
@@ -22,6 +22,7 @@ WORKDIR /app
 # Dependencies installieren
 COPY package.json ./package.json
 RUN npm install --production RUN npm install xterm xterm-addon-fit
+RUN npm install node-pty
 
 
 # Zielstruktur anlegen
