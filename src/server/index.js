@@ -25,14 +25,14 @@ wss.on("connection", (ws) => {
     const data = JSON.parse(msg);
 
     // PROCESS ABORT
-    if (data.type === "abort") {
-      if (currentProc) {
-        currentProc.kill("SIGKILL");
-        currentProc = null;
-        ws.send(JSON.stringify({ type: "stdout", payload: "\n[prozess abgebrochen]\n" }));
-      }
-      return;
-    }
+if (data.type === "abort") {
+  if (currentProc) {
+    currentProc.kill("SIGKILL");
+    ws.send("\n[prozess abgebrochen]\n");
+    currentProc = null;
+  }
+  return;
+}
 
     // STDIN → START PROCESS
     if (data.type === "stdin") {
@@ -45,18 +45,18 @@ wss.on("connection", (ws) => {
 
       currentProc = spawn("bash", ["-c", command]);
 
-      currentProc.stdout.on("data", (chunk) => {
-  ws.send(chunk.toString());
+currentProc.stdout.on("data", (chunk) => {
+  ws.send(chunk); // RAW, nicht JSON
 });
 
-      currentProc.stderr.on("data", (chunk) => {
-  ws.send(chunk.toString());
+currentProc.stderr.on("data", (chunk) => {
+  ws.send(chunk); // RAW, nicht JSON
 });
 
-      currentProc.on("close", (code) => {
-        ws.send(JSON.stringify({ type: "stdout", payload: `\n[exit ${code}]\n` }));
-        currentProc = null;
-      });
+currentProc.on("close", (code) => {
+  ws.send(`\n[exit ${code}]\n`);
+  currentProc = null;
+});
     }
   });
 });
