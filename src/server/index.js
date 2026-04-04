@@ -1,6 +1,6 @@
 import express from "express";
 import { WebSocketServer } from "ws";
-import { spawn } from "child_process";
+import pty from "node-pty";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -43,20 +43,23 @@ if (data.type === "abort") {
         currentProc = null;
       }
 
-      currentProc = spawn("bash", ["-c", command]);
-
-currentProc.stdout.on("data", (chunk) => {
-  ws.send(chunk); // RAW, nicht JSON
+currentProc = pty.spawn("bash", ["-c", command], {
+  name: "xterm-color",
+  cols: 120,
+  rows: 40,
+  cwd: process.env.HOME,
+  env: process.env
 });
 
-currentProc.stderr.on("data", (chunk) => {
-  ws.send(chunk); // RAW, nicht JSON
+currentProc.onData((data) => {
+  ws.send(data);
 });
 
-currentProc.on("close", (code) => {
-  ws.send(`\n[exit ${code}]\n`);
+currentProc.onExit((evt) => {
+  ws.send(`\n[exit ${evt.exitCode}]\n`);
   currentProc = null;
 });
+
     }
   });
 });
