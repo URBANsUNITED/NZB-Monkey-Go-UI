@@ -17,13 +17,13 @@ jobs:
         with:
           username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-    steps:
-    - uses: actions/checkout@v4
-    - name: Build the Docker image
-      run: docker build . --file Dockerfile --tag my-image-name:$(date +%s)
-    - name: Build
-      uses: docker/build-push-action@v7
-      with:
-        tags: user/app:latest
-        platforms: linux/amd64
-        push: true
+
+      - uses: actions/checkout@v4
+      - name: Build the Docker image
+        run: docker build . --file Dockerfile --tag my-image-name:$(date +%s)
+      - name: Build
+        uses: docker/build-push-action@v7
+        with:
+          tags: user/app:latest
+          platforms: linux/amd64
+          push: true
