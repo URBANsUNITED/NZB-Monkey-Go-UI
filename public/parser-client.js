@@ -1,5 +1,5 @@
 // parser-client.js
-// v6.2 – robustere Forenparser-Logik für nzb-monkey-go UI
+// v6.4 – wie v6.3, aber mit Titel-Normalisierung (AV1/HEVC vorne weg)
 
 (function () {
 
@@ -16,7 +16,7 @@
   }
 
   // ------------------------------------------------------------
-  // DATE — erkennt Datum überall im Text
+  // DATE
   // ------------------------------------------------------------
   function extractDate(text) {
     const m = text.match(/(\d{2}\.\d{2}\.\d{4})/);
@@ -32,7 +32,14 @@
   // ------------------------------------------------------------
   function extractGroups(lines) {
     for (let i = 0; i < lines.length; i++) {
-      if (/^Groups?:?$/i.test(clean(lines[i]))) {
+      const line = clean(lines[i]);
+
+      if (
+        /^Groups?$/i.test(line) ||
+        /^Groups?:?$/i.test(line) ||
+        /^Group\(s\)$/i.test(line) ||
+        /^Group\(s\):?$/i.test(line)
+      ) {
         const next = clean(lines[i + 1] || "");
         if (next) {
           return next
@@ -83,6 +90,28 @@
   }
 
   // ------------------------------------------------------------
+  // FILENAME
+  // ------------------------------------------------------------
+  function extractFilename(lines) {
+    for (let i = 0; i < lines.length; i++) {
+      const line = clean(lines[i]);
+
+      if (/^Dateiname\b/i.test(line)) {
+        return clean(lines[i + 1] || "");
+      }
+
+      if (/Dateiname für SABnzbd und Newsleecher/i.test(line)) {
+        return clean(lines[i + 1] || "");
+      }
+    }
+
+    const withPass = lines.find(l => /\{\{.+\}\}/.test(l));
+    if (withPass) return clean(withPass);
+
+    return "";
+  }
+
+  // ------------------------------------------------------------
   // NZBLNK
   // ------------------------------------------------------------
   function extractNzblnk(lines) {
@@ -95,7 +124,7 @@
   }
 
   // ------------------------------------------------------------
-  // TITLE — ML-like scoring + Standard + fallback
+  // TITLE
   // ------------------------------------------------------------
   function scoreTitle(line) {
     const s = clean(line);
@@ -105,20 +134,27 @@
 
     if (s.length >= 5 && s.length <= 120) score += 2;
     if (/\b(19|20)\d{2}\b/.test(s)) score += 3;
-    if (/\b(SUXXORS|REPACK|PROPER|MGE|DV|WEB|H265|HEVC|2160p|1080p)\b/i.test(s)) score += 3;
+    if (/\b(SUXXORS|REPACK|PROPER|MGE|DV|WEB|H265|HEVC|2160p|1080p|AV1)\b/i.test(s)) score += 3;
     if (!/[.!?]$/.test(s)) score += 1;
 
     return score;
   }
 
-  function extractTitle(lines) {
-    // 1) Standard … Titel
-    const std = lines.find(l => /^Standard\s+/i.test(clean(l)));
-    if (std) {
-      return clean(std.replace(/^Standard\s+/i, ""));
-    }
+  function normalizeTitle(title) {
+    let t = clean(title);
 
-    // 2) ML-like scoring
+    // führende Codec-/Tag-Prefixe entfernen
+    // z.B. "AV1 They Cloned Tyrone ..." -> "They Cloned Tyrone ..."
+    const prefixRegex = /^(AV1|HEVC|H\.265|H265|x265|x264)\s+/i;
+    t = t.replace(prefixRegex, "").trim();
+
+    return t;
+  }
+
+  function extractTitle(lines) {
+    const std = lines.find(l => /^Standard\s+/i.test(clean(l)));
+    if (std) return normalizeTitle(std.replace(/^Standard\s+/i, ""));
+
     let best = { line: "", score: 0 };
 
     for (const l of lines) {
@@ -126,12 +162,11 @@
       if (sc > best.score) best = { line: clean(l), score: sc };
     }
 
-    if (best.score >= 3) return best.line;
+    if (best.score >= 3) return normalizeTitle(best.line);
 
-    // 3) Fallback: Zeile nach Datum
     for (let i = 0; i < lines.length; i++) {
       if (/(\d{2}\.\d{2}\.\d{4})/.test(lines[i])) {
-        return clean(lines[i + 1] || "");
+        return normalizeTitle(lines[i + 1] || "");
       }
     }
 
@@ -152,7 +187,7 @@
       header: extractHeader(lines),
       password: extractPassword(lines),
       nzblnk: extractNzblnk(lines),
-      filename: ""
+      filename: extractFilename(lines)
     };
 
     return result;
