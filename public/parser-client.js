@@ -1,5 +1,5 @@
 // parser-client.js
-// v6.0 – "ML-ähnlicher" Forenparser für nzb-monkey-go UI
+// v6.1 – robustere Forenparser-Logik für nzb-monkey-go UI
 
 (function () {
   // ------------------------------------------------------------
@@ -11,7 +11,7 @@
       .replace(/\r\n/g, "\n")
       .replace(/\r/g, "\n")
       .split("\n")
-      .map(l => l.replace(/[\u00A0\u200B\u200C\u200D]/g, "").trimEnd());
+      .map(l => l.replace(/[\u00A0\u200B\u200C\u200D]/g, "").trim());
   }
 
   function clean(s) {
@@ -19,16 +19,14 @@
   }
 
   // ------------------------------------------------------------
-  // Date
+  // Date (egal wo im Text)
   // ------------------------------------------------------------
 
-  function extractDate(lines) {
-    for (const line of lines) {
-      const m = line.match(/(\d{2}\.\d{2}\.\d{4})/);
-      if (m) {
-        const [dd, mm, yyyy] = m[1].split(".");
-        return `${yyyy}-${mm}-${dd}`;
-      }
+  function extractDateFromText(text) {
+    const m = text.match(/(\d{2}\.\d{2}\.\d{4})/);
+    if (m) {
+      const [dd, mm, yyyy] = m[1].split(".");
+      return `${yyyy}-${mm}-${dd}`;
     }
     return "";
   }
@@ -38,34 +36,34 @@
   // ------------------------------------------------------------
 
   function extractGroups(lines) {
-    const idx = lines.findIndex(l =>
-      /^Groups?:?$/i.test(clean(l)) ||
-      /^Group\(s\)$/i.test(clean(l))
-    );
+    for (let i = 0; i < lines.length; i++) {
+      const line = clean(lines[i]);
 
-    if (idx >= 0 && lines[idx + 1]) {
-      const line = clean(lines[idx + 1]);
-      return line
-        .split(/[\|\s]+/)
-        .map(g => g.trim())
-        .filter(Boolean)
-        .join(",");
+      if (/^Groups?\s*:?\s*$/i.test(line) || /^Group\(s\)\s*:?\s*$/i.test(line)) {
+        const next = clean(lines[i + 1] || "");
+        if (next) {
+          return next
+            .split(/[\|\s]+/)
+            .map(g => g.trim())
+            .filter(Boolean)
+            .join(",");
+        }
+      }
     }
-
     return "";
   }
 
   // ------------------------------------------------------------
-  // Header (inkl. versteckt in BBCode)
+  // Header
   // ------------------------------------------------------------
 
   function extractHeader(lines) {
-    // 1) Klassische Varianten
     for (let i = 0; i < lines.length; i++) {
       const line = clean(lines[i]);
 
       if (/^Header\s*:?\s*$/i.test(line)) {
-        if (lines[i + 1]) return clean(lines[i + 1]);
+        const next = clean(lines[i + 1] || "");
+        if (next) return next;
       }
 
       if (/^Header\s*:/i.test(line)) {
@@ -73,7 +71,7 @@
       }
     }
 
-    // 2) Versteckt in BBCode / Code-Blöcken
+    // BBCode-Blöcke
     let inBlock = false;
     for (let i = 0; i < lines.length; i++) {
       const line = clean(lines[i]);
@@ -96,10 +94,29 @@
       }
 
       if (inBlock) {
-        const m = line.match(/Header\s*:\s*([A-Za-z0-9]+)$/i);
+        const m = line.match(/Header\s*:\s*([A-Za-z0-9]+)/i);
         if (m) return clean(m[1]);
       }
     }
+
+    return "";
+  }
+
+  // ------------------------------------------------------------
+  // Filename
+  // ------------------------------------------------------------
+
+  function extractFilename(lines) {
+    for (let i = 0; i < lines.length; i++) {
+      const line = clean(lines[i]);
+      if (/^Dateiname\b/i.test(line) || /Dateiname für SABnzbd/i.test(line)) {
+        const next = clean(lines[i + 1] || "");
+        if (next) return next;
+      }
+    }
+
+    const withPass = lines.find(l => /\{\{.+\}\}/.test(l));
+    if (withPass) return clean(withPass);
 
     return "";
   }
@@ -109,12 +126,12 @@
   // ------------------------------------------------------------
 
   function extractPassword(lines, filename) {
-    // 1) Klassisch: "Password" / "Passwort"
     for (let i = 0; i < lines.length; i++) {
       const line = clean(lines[i]);
 
-      if (/^Passwort\s*:?\s*$/i.test(line) || /^Password\s*:?\s*$/i.test(line)) {
-        if (lines[i + 1]) return clean(lines[i + 1]);
+      if (/^(Passwort|Password)\s*:?\s*$/i.test(line)) {
+        const next = clean(lines[i + 1] || "");
+        if (next) return next;
       }
 
       if (/^(Passwort|Password)\s*:/i.test(line)) {
@@ -122,7 +139,7 @@
       }
     }
 
-    // 2) Versteckt in BBCode
+    // BBCode-Blöcke
     let inBlock = false;
     for (let i = 0; i < lines.length; i++) {
       const line = clean(lines[i]);
@@ -150,13 +167,11 @@
       }
     }
 
-    // 3) Aus Dateiname extrahieren
+    // Aus Dateiname
     if (filename) {
-      // {{PASSWORD}}
       let m = filename.match(/\{\{([^}]+)\}\}/);
       if (m) return clean(m[1]);
 
-      // [PASSWORD]
       m = filename.match(/
 
 \[([^\]
@@ -173,27 +188,7 @@
   }
 
   // ------------------------------------------------------------
-  // Filename
-  // ------------------------------------------------------------
-
-  function extractFilename(lines) {
-    const idx = lines.findIndex(l =>
-      /^Dateiname\b/i.test(clean(l)) ||
-      /Dateiname für SABnzbd/i.test(clean(l))
-    );
-
-    if (idx >= 0 && lines[idx + 1]) {
-      return clean(lines[idx + 1]);
-    }
-
-    const withPass = lines.find(l => /\{\{.+\}\}/.test(l));
-    if (withPass) return clean(withPass);
-
-    return "";
-  }
-
-  // ------------------------------------------------------------
-  // NZBLNK (inkl. Spoiler/Show/Code)
+  // NZBLNK
   // ------------------------------------------------------------
 
   function extractNzblnk(lines) {
@@ -202,14 +197,12 @@
       return m ? clean(m[1]) : "";
     };
 
-    // 1) Direkt in Zeile
     for (const raw of lines) {
       const line = clean(raw);
       const found = findInLine(line);
       if (found) return found;
     }
 
-    // 2) "NZBLNK" + nächste Zeile
     for (let i = 0; i < lines.length; i++) {
       const line = clean(lines[i]);
       if (/^NZBLNK$/i.test(line) && lines[i + 1]) {
@@ -218,7 +211,6 @@
       }
     }
 
-    // 3) In [Show]/[Spoiler]/[Code]-Blöcken
     let inBlock = false;
     for (let i = 0; i < lines.length; i++) {
       const line = clean(lines[i]);
@@ -250,7 +242,7 @@
   }
 
   // ------------------------------------------------------------
-  // ML-ähnliche Titel-Erkennung (Scoring)
+  // Titel – Scoring + Fallbacks
   // ------------------------------------------------------------
 
   function scoreTitleCandidate(line) {
@@ -259,25 +251,12 @@
 
     let score = 0;
 
-    // Länge
-    if (s.length >= 10 && s.length <= 140) score += 2;
-
-    // Jahr
+    if (s.length >= 5 && s.length <= 140) score += 2;
     if (/\b(19|20)\d{2}\b/.test(s)) score += 3;
-
-    // Qualitäts-/Release-Tags
     if (/\b(2160p|1080p|720p|WEB|H265|HEVC|DV|HDR|REMUX|BLURAY|BDRIP)\b/i.test(s)) score += 3;
-
-    // Sprache
     if (/\b(GERMAN|DL|MULTI|DUBBED)\b/i.test(s)) score += 2;
-
-    // Release-Suffix
     if (/\b(REPACK|PROPER|MGE|SUXXORS|iNTERNAL|UNRATED)\b/i.test(s)) score += 2;
-
-    // Kein Satzende-Punkt
     if (!/[.!?]$/.test(s)) score += 1;
-
-    // Keine typischen Beschreibungssätze
     if (!/Laden und mit der entpackten|Hinweis: Upload führt zu|Es kann ein paar Stunden dauern/i.test(s)) {
       score += 1;
     }
@@ -286,7 +265,6 @@
   }
 
   function extractTitle(lines, result) {
-    // 1) Release-Pattern (v5)
     let best = { line: "", score: 0 };
 
     for (let i = 0; i < lines.length; i++) {
@@ -301,9 +279,8 @@
       result.title = best.line;
     }
 
-    // 2) Deine alte Logik (v4.1) als Fallback
+    // Fallbacks wie vorher
 
-    // "Standard ..." Titel
     if (!result.title) {
       const stdTitle = lines.find(l => /^Standard\s+/i.test(clean(l)));
       if (stdTitle) {
@@ -311,11 +288,10 @@
       }
     }
 
-    // Titel relativ zu "Groups"
     if (!result.title) {
       const gIdx = lines.findIndex(l =>
-        /^Groups?:?$/i.test(clean(l)) ||
-        /^Group\(s\)$/i.test(clean(l))
+        /^Groups?\s*:?\s*$/i.test(clean(l)) ||
+        /^Group\(s\)\s*:?\s*$/i.test(clean(l))
       );
 
       if (gIdx > 0) {
@@ -332,7 +308,6 @@
       }
     }
 
-    // Titel relativ zu Datum (Zeile nach Datum)
     if (!result.title) {
       const dateLine = lines.find(l =>
         /^\d{2}\.\d{2}\.\d{4}/.test(clean(l)) ||
@@ -349,7 +324,6 @@
       }
     }
 
-    // 3) Fallback: aus Dateiname ableiten
     if (!result.title && result.filename) {
       result.title = clean(result.filename.split("{{")[0]);
     }
@@ -358,11 +332,12 @@
   }
 
   // ------------------------------------------------------------
-  // Main parser
+  // Main
   // ------------------------------------------------------------
 
   function parseForumText(text) {
     const lines = normalizeLines(text);
+    const flat = lines.join("\n");
 
     const result = {
       date: "",
@@ -374,7 +349,7 @@
       filename: ""
     };
 
-    result.date = extractDate(lines);
+    result.date = extractDateFromText(flat);
     result.group = extractGroups(lines);
     result.filename = extractFilename(lines);
     result.header = extractHeader(lines);
