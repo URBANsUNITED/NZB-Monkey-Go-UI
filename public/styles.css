@@ -1,120 +1,140 @@
+/* ------------------------------------------------------------
+   GLOBAL
+------------------------------------------------------------ */
+
 :root {
-  --bg: #111827;
-  --fg: #e5e7eb;
-  --panel: #1f2937;
-  --accent: #8b5cf6;
+  --bg: #f3f4f6;
+  --panel-bg: #ffffff;
+  --text: #111827;
+  --border: #d1d5db;
 }
 
-/* Light */
-:root[data-theme="light"] {
-  --bg: #f9fafb;
-  --fg: #111827;
-  --panel: #ffffff;
+[data-theme="dark"] {
+  --bg: #0f172a;
+  --panel-bg: #1e293b;
+  --text: #e2e8f0;
+  --border: #334155;
 }
 
-/* Dark */
-:root[data-theme="dark"] {
-  --bg: #111827;
-  --fg: #e5e7eb;
-  --panel: #1f2937;
-}
-
-/* Dracula */
-:root[data-theme="dracula"] {
+[data-theme="dracula"] {
   --bg: #282a36;
-  --fg: #f8f8f2;
-  --panel: #44475a;
-}
-
-/* System */
-@media (prefers-color-scheme: dark) {
-  :root[data-theme="system"] {
-    --bg: #111827;
-    --fg: #e5e7eb;
-    --panel: #1f2937;
-  }
+  --panel-bg: #343746;
+  --text: #f8f8f2;
+  --border: #44475a;
 }
 
 body {
   margin: 0;
-  padding: 16px;
+  padding: 0;
   font-family: system-ui, sans-serif;
   background: var(--bg);
-  color: var(--fg);
+  color: var(--text);
 }
+
+/* ------------------------------------------------------------
+   LAYOUT
+------------------------------------------------------------ */
 
 .layout {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1.1fr 1.4fr;
+  gap: 16px;
+  padding: 16px;
+}
+
+.left, .right {
+  display: flex;
+  flex-direction: column;
   gap: 16px;
 }
 
-/* Mobile: untereinander */
-@media (max-width: 900px) {
-  .layout {
-    grid-template-columns: 1fr;
-  }
-
-  .left, .right {
-    width: 100%;
-  }
-}
-
+/* ------------------------------------------------------------
+   PANELS
+------------------------------------------------------------ */
 
 .panel {
-  background: var(--panel);
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 12px;
+  padding: 16px;
+}
+
+.panel h2 {
+  margin-top: 0;
+}
+
+/* ------------------------------------------------------------
+   INPUTS
+------------------------------------------------------------ */
+
+label {
+  display: block;
   margin-bottom: 12px;
 }
 
-textarea#rawText {
+input, textarea, select {
   width: 100%;
-  height: 140px;
-  resize: vertical;
-  font-family: monospace;
-  background: #020617;
-  color: #e5e7eb;
-  border-radius: 4px;
-  border: 1px solid #374151;
   padding: 8px;
+  margin-top: 4px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--panel-bg);
+  color: var(--text);
+}
+
+textarea {
+  resize: vertical;
+  min-height: 120px;
 }
 
 button {
-  margin-top: 8px;
-  padding: 6px 10px;
-  border-radius: 4px;
+  padding: 10px 14px;
   border: none;
-  background: var(--accent);
+  border-radius: 6px;
+  background: #2563eb;
   color: white;
   cursor: pointer;
+  margin-top: 8px;
 }
+
+button:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+}
+
+/* ------------------------------------------------------------
+   DEBUG
+------------------------------------------------------------ */
+
+#debugJson {
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 12px;
+  border-radius: 6px;
+  overflow-x: auto;
+  font-size: 14px;
+}
+
+#debugErrors {
+  color: #dc2626;
+  margin-top: 8px;
+}
+
+/* ------------------------------------------------------------
+   TERMINAL (AUFGEHÜBSCHT)
+------------------------------------------------------------ */
 
 #terminal {
-  width: 100%;
-  height: 260px;
-  background: #020617;
-  border-radius: 4px;
-  overflow: hidden;
-}
-@media (max-width: 900px) {
-  #terminal {
-    height: 200px;
-  }
-}
-
-/* --- Terminal Styling Upgrade --- */
-
-#terminal {
-  background: #0d1117;              /* GitHub Dark */
+  background: #0d1117;
   border-radius: 10px;
   border: 1px solid #30363d;
   box-shadow: 0 0 25px rgba(0,0,0,0.35);
   overflow: hidden;
   position: relative;
+  height: 260px;
 }
 
-/* Glow-Effekt oben */
+/* Glow-Leiste oben */
 #terminal::before {
   content: "";
   position: absolute;
@@ -126,7 +146,7 @@ button {
   opacity: 0.35;
 }
 
-/* Terminal-Scrollbars schöner */
+/* Scrollbars */
 .xterm-viewport::-webkit-scrollbar {
   width: 8px;
 }
@@ -140,45 +160,26 @@ button {
   background: #484f58;
 }
 
-
-.error-border {
-  border: 1px solid #dc2626 !important; /* rot */
-  box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.3);
-}
-
-#errorList,
-#debugErrors {
-  list-style: none;
-  padding-left: 0;
-  margin: 0.25rem 0 0;
-}
-
-.error-text {
-  color: #dc2626;
-  font-size: 0.85rem;
-}
-
-.error-border {
-  border: 1px solid #dc2626 !important;
-  box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.3);
-}
-
-.error-text {
-  color: #dc2626;
-  font-size: 0.85rem;
-}
-button.full {
-  width: 100%;
-}
+/* ------------------------------------------------------------
+   RESPONSIVE
+------------------------------------------------------------ */
 
 @media (max-width: 900px) {
-  label {
-    display: block;
-    margin-bottom: 12px;
+  .layout {
+    grid-template-columns: 1fr;
   }
 
-  label input {
-    margin-top: 4px;
+  textarea#rawText {
+    height: 200px;
+  }
+
+  #terminal {
+    height: 200px;
   }
 }
 
+@media (max-width: 600px) {
+  #terminal {
+    height: 160px;
+  }
+}
