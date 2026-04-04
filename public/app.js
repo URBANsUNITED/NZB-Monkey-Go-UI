@@ -122,10 +122,9 @@ function initWS() {
   const protocol = location.protocol === "https:" ? "wss:" : "ws:";
   ws = new WebSocket(`${protocol}//${location.host}`);
 
-  ws.onmessage = (event) => {
-    const data = JSON.parse(event.data);
-    term.write(data.payload);
-  };
+    ws.onmessage = (event) => {
+  term.write(event.data);
+};
 
   // EINZIGER gültiger Input-Handler
   term.onData((data) => {
