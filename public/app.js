@@ -120,7 +120,8 @@ let ws;
 
 function initWS() {
   const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-  ws = new WebSocket(`${protocol}//${location.host}`);
+ws = new WebSocket(`${protocol}//${location.host}`);
+ws.binaryType = "arraybuffer";
 
 ws.onmessage = (event) => {
   if (event.data instanceof ArrayBuffer) {
@@ -130,6 +131,7 @@ ws.onmessage = (event) => {
     term.write(event.data);
   }
 };
+
 
   // EINZIGER gültiger Input-Handler
   term.onData((data) => {
