@@ -20,6 +20,8 @@ function initTerminal() {
   term.loadAddon(fitAddon);
 
   term.open(container);
+  term.write("\x1b[1;36mWillkommen bei nzb-monkey-go UI v2\x1b[0m\r\n");
+term.write("\x1b[0;90mBereit für deinen nächsten Download...\x1b[0m\r\n\n");
   fitAddon.fit();
 
   window.addEventListener("resize", () => fitAddon.fit());
