@@ -10,11 +10,18 @@ function initTerminal() {
     return;
   }
 
-  term = new Terminal({
-    convertEol: true,
-    fontFamily: "Consolas, monospace",
-    fontSize: 14
-  });
+term = new Terminal({
+  convertEol: true,
+  fontFamily: "Consolas, monospace",
+  fontSize: 14,
+  allowProposedApi: true,
+  theme: {
+    background: "#0d1117",
+    foreground: "#c9d1d9",
+    cursor: "#58a6ff",
+  }
+});
+
 
   fitAddon = new FitAddon.FitAddon();
   term.loadAddon(fitAddon);
