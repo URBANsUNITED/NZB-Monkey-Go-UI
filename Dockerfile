@@ -31,7 +31,6 @@ RUN mkdir -p src/server \
     && mkdir -p public
 
 COPY /src/server/index.js ./src/server/index.js
-COPY /src/server/terminal.js ./src/server/terminal.js
 COPY /src/server/config.js ./src/server/config.js
 
 COPY /src/parser/forum.js ./src/parser/forum.js
@@ -44,6 +43,8 @@ COPY /public/index.html ./public/index.html
 COPY /public/styles.css ./public/styles.css
 COPY /public/app.js ./public/app.js
 COPY /public/parser-client.js ./public/parser-client.js
+COPY /public/terminal.js ./src/server/terminal.js
+
 
 EXPOSE 3000
 CMD ["node", "src/server/index.js"]
