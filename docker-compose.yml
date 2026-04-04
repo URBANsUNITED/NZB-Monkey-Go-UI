@@ -1,6 +1,6 @@
 services:
   nzb-monkey-go-ui:
-    container_name: nzb-monkey-go
+    container_name: nzb-monkey-go-ui
     image: urbansunited/nzb-monkey-go-ui:latest
     restart: always
     ports:  
