@@ -14,11 +14,13 @@ term = new Terminal({
   convertEol: true,
   fontFamily: "Consolas, monospace",
   fontSize: 14,
-  allowProposedApi: true,
+  rendererType: "canvas",     // WICHTIG für Farben
+  allowProposedApi: true,     // WICHTIG für Farben
   theme: {
     background: "#0d1117",
     foreground: "#c9d1d9",
     cursor: "#58a6ff",
+    selection: "#264f78"
   }
 });
 
@@ -192,14 +194,13 @@ abortBtn.addEventListener("click", () => {
 
     debugJson.textContent = JSON.stringify(data, null, 2);
 
-    debugErrors.innerHTML = "";
-    ["date", "title", "group", "header", "password", "nzblnk"].forEach((k) => {
-      if (!data[k]) {
-        const li = document.createElement("li");
-        li.textContent = `${k} fehlt`;
-        debugErrors.appendChild(li);
-      }
-    });
+["date", "title", "group", "header", "nzblnk"].forEach((k) => {
+  if (!data[k]) {
+    const li = document.createElement("li");
+    li.textContent = `${k} fehlt`;
+    debugErrors.appendChild(li);
+  }
+});
   }
 
   // ---------------- DATUMSKONVERTER ----------------
