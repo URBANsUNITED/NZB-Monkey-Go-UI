@@ -17,12 +17,12 @@ jobs:
         run: docker build . --file Dockerfile --tag my-image-name:$(date +%s)
       - name: Build
         uses: docker/build-push-action@v7
-        with:
-          tags: user/app:latest
-          platforms: linux/amd64
-          push: true
-    secrets:
-      registry-auths: |
-        - registry: docker.io
-          username: ${{ vars.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      with:
+        tags: user/app:latest
+        platforms: linux/amd64
+        push: true
+      secrets:
+        registry-auths: |
+          - registry: docker.io
+            username: ${{ vars.DOCKERHUB_USERNAME }}
+            password: ${{ secrets.DOCKERHUB_TOKEN }}
