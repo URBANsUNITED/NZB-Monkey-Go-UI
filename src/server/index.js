@@ -46,12 +46,12 @@ wss.on("connection", (ws) => {
       currentProc = spawn("bash", ["-c", command]);
 
       currentProc.stdout.on("data", (chunk) => {
-        ws.send(JSON.stringify({ type: "stdout", payload: chunk.toString() }));
-      });
+  ws.send(chunk.toString());
+});
 
       currentProc.stderr.on("data", (chunk) => {
-        ws.send(JSON.stringify({ type: "stdout", payload: chunk.toString() }));
-      });
+  ws.send(chunk.toString());
+});
 
       currentProc.on("close", (code) => {
         ws.send(JSON.stringify({ type: "stdout", payload: `\n[exit ${code}]\n` }));
