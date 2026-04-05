@@ -1,5 +1,5 @@
 // parser-client.js
-// v6.8 – Titel-Prefix-Entfernung (BD, Remux, AV1, HEVC), Datum "Heute"
+// v6.9 – Titel-Prefix-Entfernung (BD, Remux, AV1, HEVC), Datum "Heute"
 
 (function () {
 
@@ -133,61 +133,104 @@
   }
 
   // ------------------------------------------------------------
-  // TITLE
-  // ------------------------------------------------------------
-  function scoreTitle(line) {
-    const s = clean(line);
-    if (!s) return 0;
-    if (/^nzblnk[:?]/i.test(s)) return 0;
+// TITLE (v6.9)
+// ------------------------------------------------------------
 
-    let score = 0;
-    if (s.length >= 5 && s.length <= 140) score += 2;
-    if (/\b(19|20)\d{2}\b/.test(s)) score += 3;
-    if (/\b(SUXXORS|REPACK|PROPER|MGE|DV|WEB|H265|HEVC|2160p|1080p|AV1|BluRay|Remux)\b/i.test(s)) score += 3;
-    if (!/[.!?]$/.test(s)) score += 1;
+// Zeilen, die niemals Titel sein dürfen
+const TITLE_BLACKLIST = [
+  /^Registriert seit/i,
+  /^Beiträge/i,
+  /^Anzahl 'Danke'/i,
+  /^Ort:/i,
+  /ist offline/i,
+  /ist online/i,
+  /^Team /i,
+  /^Benutzerbild/i
+];
 
-    return score;
-  }
+// Kategorie-Prefixe, die entfernt werden
+const CATEGORY_PREFIX = /^(MP3|FLAC|Movie|Film|PC|Game|Games|XXX|Doku|BD|BDRip|Remux)\s*[-:]*\s*/i;
 
-  function normalizeTitle(title) {
-    let t = clean(title);
+function scoreTitle(line) {
+  const s = clean(line);
+  if (!s) return 0;
 
-    // Codec-Prefixe
-    t = t.replace(/^(AV1|HEVC|H\.265|H265|x265|x264)\s+/i, "").trim();
+  // NZBLNK nie als Titel
+  if (/^nzblnk[:?]/i.test(s)) return 0;
 
-    // BD-/Remux-Prefixe
-    t = t.replace(/^(BD|BD[-–—:]|BD\s*[-–—]\s*Remux|BD\s*Remux)\s+/i, "").trim();
+  // Profilzeilen nie als Titel
+  if (TITLE_BLACKLIST.some(rx => rx.test(s))) return 0;
 
-    // Reiner "Remux"-Prefix
-    t = t.replace(/^Remux\s+/i, "").trim();
+  let score = 0;
 
-    // Führende Trennzeichen entfernen
-    t = t.replace(/^[-–—:]\s*/, "").trim();
+  if (s.length >= 5 && s.length <= 140) score += 2;
+  if (/\b(19|20)\d{2}\b/.test(s)) score += 3;
+  if (/\b(2160p|1080p|720p|WEB|BluRay|HDR|DV|AV1|HEVC|H265|Remux)\b/i.test(s)) score += 3;
+  if (!/[.!?]$/.test(s)) score += 1;
 
-    return t;
-  }
+  return score;
+}
 
-  function extractTitle(lines) {
-    const std = lines.find(l => /^Standard\s+/i.test(clean(l)));
-    if (std) return normalizeTitle(std.replace(/^Standard\s+/i, ""));
+function normalizeTitle(title) {
+  let t = clean(title);
 
-    let best = { line: "", score: 0 };
+  // Kategorie-Prefix entfernen
+  t = t.replace(CATEGORY_PREFIX, "").trim();
 
-    for (const l of lines) {
-      const sc = scoreTitle(l);
-      if (sc > best.score) best = { line: clean(l), score: sc };
+  // Codec-Prefixe entfernen
+  t = t.replace(/^(AV1|HEVC|H\.265|H265|x265|x264)\s+/i, "").trim();
+
+  // BD-/Remux-Prefixe entfernen
+  t = t.replace(/^(BD|BD[-–—:]|BD\s*[-–—]\s*Remux|BD\s*Remux)\s+/i, "").trim();
+
+  // Reiner Remux-Prefix
+  t = t.replace(/^Remux\s+/i, "").trim();
+
+  // Führende Trennzeichen entfernen
+  t = t.replace(/^[-–—:]\s*/, "").trim();
+
+  return t;
+}
+
+function extractTitle(lines) {
+  // 1) Standard … Titel
+  const std = lines.find(l => /^Standard\s+/i.test(clean(l)));
+  if (std) return normalizeTitle(std.replace(/^Standard\s+/i, ""));
+
+  // 2) Doppel-Titel-Erkennung (immer zweiten nehmen)
+  for (let i = 0; i < lines.length - 1; i++) {
+    const a = clean(lines[i]);
+    const b = clean(lines[i + 1]);
+
+    if (!a || !b) continue;
+
+    const aNorm = normalizeTitle(a);
+    const bNorm = normalizeTitle(b);
+
+    if (aNorm !== bNorm && bNorm.length > 0 && aNorm.includes(bNorm)) {
+      return bNorm;
     }
-
-    if (best.score >= 3) return normalizeTitle(best.line);
-
-    for (let i = 0; i < lines.length; i++) {
-      if (/(\d{2}\.\d{2}\.\d{4})/.test(lines[i])) {
-        return normalizeTitle(lines[i + 1] || "");
-      }
-    }
-
-    return "";
   }
+
+  // 3) ML-like scoring
+  let best = { line: "", score: 0 };
+
+  for (const l of lines) {
+    const sc = scoreTitle(l);
+    if (sc > best.score) best = { line: clean(l), score: sc };
+  }
+
+  if (best.score >= 3) return normalizeTitle(best.line);
+
+  // 4) Fallback: Zeile nach Datum
+  for (let i = 0; i < lines.length; i++) {
+    if (/(\d{2}\.\d{2}\.\d{4})/.test(lines[i])) {
+      return normalizeTitle(lines[i + 1] || "");
+    }
+  }
+
+  return "";
+}
 
   // ------------------------------------------------------------
   // NZBLNK → Felder überschreiben
