@@ -1,5 +1,12 @@
 // parser-client.js
-// v6.9 – Titel-Prefix-Entfernung (BD, Remux, AV1, HEVC), Datum "Heute"
+// v7.1 – Kontextbasierter Forenparser (iPhone-freundlich)
+// - Datum: Heute / Gestern / Vorgestern + DD.MM.YYYY
+// - NZBLNK als Datenquelle (t, h, p, g, d)
+// - Titel-Variante B (Standard + optional zweiter Titel)
+// - Titel-Prefix-Cleaner (MP3, BD, Remux, AV1, …)
+// - Profilzeilen-Blacklist
+// - Groups / Header / Passwort / Filename auch OHNE Label erkennbar
+// - Keine Längen-Heuristik für Passwort/Header
 
 (function () {
 
@@ -52,9 +59,57 @@
   }
 
   // ------------------------------------------------------------
-  // GROUPS
+  // HELFER: Muster-Erkennung
+  // ------------------------------------------------------------
+  function looksLikeGroupLine(line) {
+    const s = clean(line);
+    if (!s) return false;
+    if (/a\.b\./i.test(s)) return true;
+    if (/alt\.binaries\./i.test(s)) return true;
+    return false;
+  }
+
+  function looksLikeNzblnk(line) {
+    const s = clean(line);
+    return /^nzblnk[:?]/i.test(s);
+  }
+
+  function looksLikeFilename(line) {
+    const s = clean(line);
+    if (!s) return false;
+    if (/\{\{.+\}\}/.test(s)) return true;
+    if (/\b(19|20)\d{2}\b/.test(s) && /[._-]/.test(s)) return true;
+    return false;
+  }
+
+  function looksLikeHeaderCandidate(line) {
+    const s = clean(line);
+    if (!s) return false;
+    if (!/^[A-Za-z0-9]+$/.test(s)) return false;
+    if (looksLikeGroupLine(s)) return false;
+    if (looksLikeFilename(s)) return false;
+    if (looksLikeNzblnk(s)) return false;
+    return true;
+  }
+
+  function looksLikePasswordCandidate(line) {
+    const s = clean(line);
+    if (!s) return false;
+    if (looksLikeGroupLine(s)) return false;
+    if (looksLikeFilename(s)) return false;
+    if (looksLikeNzblnk(s)) return false;
+    if (/^Header\s*:?/i.test(s)) return false;
+    if (/^Groups?/i.test(s)) return false;
+    if (/^Dateiname\b/i.test(s)) return false;
+    if (/^(Passwort|Password)\s*:?/i.test(s)) return false;
+    return true;
+  }
+
+  // ------------------------------------------------------------
+  // GROUPS (mit und ohne Label)
   // ------------------------------------------------------------
   function extractGroups(lines) {
+    // 1) Mit Label
     for (let i = 0; i < lines.length; i++) {
       const line = clean(lines[i]);
 
@@ -62,51 +117,87 @@
         /^Groups?$/i.test(line) ||
         /^Groups?:?$/i.test(line) ||
         /^Group\(s\)$/i.test(line) ||
-        /^Group\(s\):?$/i.test(line)
+        /^Group\(s\):?$/i.test(line) ||
+        /^Group:$/i.test(line) ||
+        /^Group\s*$/i.test(line)
       ) {
         const next = clean(lines[i + 1] || "");
         if (next) {
           return next
-            .split(/\s+/)
+            .split(/\s*\|\s*|\s+/)
             .map(g => g.trim())
             .filter(Boolean)
             .join(",");
         }
       }
     }
+
+    // 2) Ohne Label – Zeile, die wie Group aussieht
+    for (const raw of lines) {
+      const line = clean(raw);
+      if (looksLikeGroupLine(line)) {
+        return line
+          .split(/\s*\|\s*|\s+/)
+          .map(g => g.trim())
+          .filter(Boolean)
+          .join(",");
+      }
+    }
+
     return "";
   }
 
   // ------------------------------------------------------------
-  // HEADER
+  // HEADER (mit und ohne Label)
   // ------------------------------------------------------------
   function extractHeader(lines) {
+    // 1) Mit Label
     for (let i = 0; i < lines.length; i++) {
       const line = clean(lines[i]);
 
       if (/^Header\s*:?\s*$/i.test(line)) return clean(lines[i + 1] || "");
       if (/^Header\s*:/i.test(line)) return clean(line.replace(/^Header\s*:/i, ""));
     }
+
+    // 2) Ohne Label – Kandidat suchen
+    for (const raw of lines) {
+      const line = clean(raw);
+      if (looksLikeHeaderCandidate(line)) {
+        return line;
+      }
+    }
+
     return "";
   }
 
   // ------------------------------------------------------------
-  // PASSWORD
+  // PASSWORD (mit und ohne Label)
   // ------------------------------------------------------------
   function extractPassword(lines) {
+    // 1) Mit Label
     for (let i = 0; i < lines.length; i++) {
       const line = clean(lines[i]);
 
       if (/^(Passwort|Password)\s*:?\s*$/i.test(line)) return clean(lines[i + 1] || "");
       if (/^(Passwort|Password)\s*:/i.test(line)) return clean(line.replace(/^(Passwort|Password)\s*:/i, ""));
     }
+
+    // 2) Ohne Label – Kandidat suchen
+    for (const raw of lines) {
+      const line = clean(raw);
+      if (looksLikePasswordCandidate(line)) {
+        return line;
+      }
+    }
+
     return "";
   }
 
   // ------------------------------------------------------------
-  // FILENAME
+  // FILENAME (mit und ohne Label)
   // ------------------------------------------------------------
   function extractFilename(lines) {
+    // 1) Mit Label
     for (let i = 0; i < lines.length; i++) {
       const line = clean(lines[i]);
 
@@ -114,8 +205,15 @@
       if (/Dateiname für SABnzbd und Newsleecher/i.test(line)) return clean(lines[i + 1] || "");
     }
 
+    // 2) Zeile mit {{…}}
     const withPass = lines.find(l => /\{\{.+\}\}/.test(l));
     if (withPass) return clean(withPass);
+
+    // 3) Fallback: Zeile, die wie ein Filename aussieht
+    for (const raw of lines) {
+      const line = clean(raw);
+      if (looksLikeFilename(line)) return line;
+    }
 
     return "";
   }
@@ -133,104 +231,98 @@
   }
 
   // ------------------------------------------------------------
-// TITLE (v6.9)
-// ------------------------------------------------------------
+  // TITLE (v7.1 – Variante B)
+  // ------------------------------------------------------------
 
-// Zeilen, die niemals Titel sein dürfen
-const TITLE_BLACKLIST = [
-  /^Registriert seit/i,
-  /^Beiträge/i,
-  /^Anzahl 'Danke'/i,
-  /^Ort:/i,
-  /ist offline/i,
-  /ist online/i,
-  /^Team /i,
-  /^Benutzerbild/i
-];
+  const TITLE_BLACKLIST = [
+    /^Registriert seit/i,
+    /^Beiträge/i,
+    /^Anzahl 'Danke'/i,
+    /^Ort:/i,
+    /ist offline/i,
+    /ist online/i,
+    /^Team /i,
+    /^Benutzerbild/i
+  ];
 
-// Kategorie-Prefixe, die entfernt werden
-const CATEGORY_PREFIX = /^(MP3|FLAC|Movie|Film|PC|Game|Games|XXX|Doku|BD|BDRip|Remux)\s*[-:]*\s*/i;
+  const CATEGORY_PREFIX = /^(MP3|FLAC|Movie|Film|PC|Game|Games|XXX|Doku|BD|BDRip|Remux|Software|App|Application)\s*[-:]*\s*/i;
 
-function scoreTitle(line) {
-  const s = clean(line);
-  if (!s) return 0;
+  function scoreTitle(line) {
+    const s = clean(line);
+    if (!s) return 0;
+    if (looksLikeNzblnk(s)) return 0;
+    if (TITLE_BLACKLIST.some(rx => rx.test(s))) return 0;
 
-  // NZBLNK nie als Titel
-  if (/^nzblnk[:?]/i.test(s)) return 0;
+    let score = 0;
+    if (s.length >= 5 && s.length <= 140) score += 2;
+    if (/\b(19|20)\d{2}\b/.test(s)) score += 3;
+    if (/\b(2160p|1080p|720p|WEB|BluRay|HDR|DV|AV1|HEVC|H265|Remux)\b/i.test(s)) score += 3;
+    if (!/[.!?]$/.test(s)) score += 1;
 
-  // Profilzeilen nie als Titel
-  if (TITLE_BLACKLIST.some(rx => rx.test(s))) return 0;
+    return score;
+  }
 
-  let score = 0;
+  function normalizeTitle(title) {
+    let t = clean(title);
 
-  if (s.length >= 5 && s.length <= 140) score += 2;
-  if (/\b(19|20)\d{2}\b/.test(s)) score += 3;
-  if (/\b(2160p|1080p|720p|WEB|BluRay|HDR|DV|AV1|HEVC|H265|Remux)\b/i.test(s)) score += 3;
-  if (!/[.!?]$/.test(s)) score += 1;
+    t = t.replace(CATEGORY_PREFIX, "").trim();
+    t = t.replace(/^(AV1|HEVC|H\.265|H265|x265|x264)\s+/i, "").trim();
+    t = t.replace(/^(BD|BD[-–—:]|BD\s*[-–—]\s*Remux|BD\s*Remux)\s+/i, "").trim();
+    t = t.replace(/^Remux\s+/i, "").trim();
+    t = t.replace(/^[-–—:]\s*/, "").trim();
 
-  return score;
-}
+    return t;
+  }
 
-function normalizeTitle(title) {
-  let t = clean(title);
+  function extractTitle(lines) {
+    const cleaned = lines.map(l => clean(l));
 
-  // Kategorie-Prefix entfernen
-  t = t.replace(CATEGORY_PREFIX, "").trim();
+    // 1) Standard-Titel (Variante B)
+    const stdIndex = cleaned.findIndex(l => /^Standard\s+/i.test(l));
+    if (stdIndex !== -1) {
+      const stdTitle = normalizeTitle(cleaned[stdIndex].replace(/^Standard\s+/i, ""));
+      const next = cleaned[stdIndex + 1] || "";
 
-  // Codec-Prefixe entfernen
-  t = t.replace(/^(AV1|HEVC|H\.265|H265|x265|x264)\s+/i, "").trim();
+      if (
+        next &&
+        !TITLE_BLACKLIST.some(rx => rx.test(next)) &&
+        normalizeTitle(next) !== stdTitle
+      ) {
+        return normalizeTitle(next);
+      }
 
-  // BD-/Remux-Prefixe entfernen
-  t = t.replace(/^(BD|BD[-–—:]|BD\s*[-–—]\s*Remux|BD\s*Remux)\s+/i, "").trim();
-
-  // Reiner Remux-Prefix
-  t = t.replace(/^Remux\s+/i, "").trim();
-
-  // Führende Trennzeichen entfernen
-  t = t.replace(/^[-–—:]\s*/, "").trim();
-
-  return t;
-}
-
-function extractTitle(lines) {
-  // 1) Standard … Titel
-  const std = lines.find(l => /^Standard\s+/i.test(clean(l)));
-  if (std) return normalizeTitle(std.replace(/^Standard\s+/i, ""));
-
-  // 2) Doppel-Titel-Erkennung (immer zweiten nehmen)
-  for (let i = 0; i < lines.length - 1; i++) {
-    const a = clean(lines[i]);
-    const b = clean(lines[i + 1]);
-
-    if (!a || !b) continue;
-
-    const aNorm = normalizeTitle(a);
-    const bNorm = normalizeTitle(b);
-
-    if (aNorm !== bNorm && bNorm.length > 0 && aNorm.includes(bNorm)) {
-      return bNorm;
+      return stdTitle;
     }
-  }
 
-  // 3) ML-like scoring
-  let best = { line: "", score: 0 };
+    // 2) Doppel-Titel (z.B. "Mp3 XYZ" / "XYZ")
+    for (let i = 0; i < cleaned.length - 1; i++) {
+      const a = normalizeTitle(cleaned[i]);
+      const b = normalizeTitle(cleaned[i + 1]);
 
-  for (const l of lines) {
-    const sc = scoreTitle(l);
-    if (sc > best.score) best = { line: clean(l), score: sc };
-  }
-
-  if (best.score >= 3) return normalizeTitle(best.line);
-
-  // 4) Fallback: Zeile nach Datum
-  for (let i = 0; i < lines.length; i++) {
-    if (/(\d{2}\.\d{2}\.\d{4})/.test(lines[i])) {
-      return normalizeTitle(lines[i + 1] || "");
+      if (a && b && a !== b && a.includes(b)) {
+        return b;
+      }
     }
-  }
 
-  return "";
-}
+    // 3) Scoring
+    let best = { line: "", score: 0 };
+
+    for (const l of cleaned) {
+      const sc = scoreTitle(l);
+      if (sc > best.score) best = { line: l, score: sc };
+    }
+
+    if (best.score >= 3) return normalizeTitle(best.line);
+
+    // 4) Fallback: Zeile nach Datum
+    for (let i = 0; i < cleaned.length; i++) {
+      if (/(\d{2}\.\d{2}\.\d{4})/.test(cleaned[i])) {
+        return normalizeTitle(cleaned[i + 1] || "");
+      }
+    }
+
+    return "";
+  }
 
   // ------------------------------------------------------------
   // NZBLNK → Felder überschreiben
